@@ -2,16 +2,41 @@
 
 #prepere program
 listOfFiles=()
+listOfDirectories=()
 verboseON=0
 directory="$(pwd)"
+recursive=0
+
+look_for_directories_and_files () {
+    local current_dir="$1"
+    local dirs=()
+
+    for a in "$current_dir"/*; do
+        [ -e "$a" ] || continue
+
+        if [ -d "$a" ]; then
+            if [ "$recursive" -eq 1 ]; then
+                dirs+=("$a")
+                listOfDirectories+=("$a")
+            fi
+        else
+            listOfFiles+=("$a")
+        fi
+    done
+
+    for d in "${dirs[@]}"; do
+        look_for_directories_and_files "$d"
+    done
+}
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         -h|--help)
-            echo "Usage: $0 [-h] [-v] [-d directory]"
+            echo "Usage: $0 [-h] [-v] [-r] [-d directory]"
             echo "  -h, --help        Show this help"
             echo "  -v, --verbose     Enable verbose mode"
             echo "  -d, --directory   Set directory"
+            echo " -r, --recursive    Enable program going into directories"
             exit 0
             ;;
         -v|--verbose)
@@ -21,6 +46,9 @@ while [[ "$#" -gt 0 ]]; do
             directory="$2"
             shift
             ;;
+        -r|--recursive)
+            recursive=1
+            ;;
         *)
             echo "Unknown option: $1"
             exit 0
@@ -29,18 +57,16 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
-for a in $(ls $directory)
-do
-  listOfFiles+=("$a")
-done
+look_for_directories_and_files "$directory"
 
-filesInDirectory=${#listOfFiles[@]}
+#filesInDirectory=${#listOfFiles[@]}
+#echo ${filesInDirectory}
 #echo ${listOfFiles[*]}
-echo $directory
+# echo $directory
 
 for a in "${listOfFiles[@]}"
 do
-    echo "$(stat -c %w "$directory/$a")"
+    echo "$(stat -c "%n %w" "$a")"
 done
 
 : <<'END'
