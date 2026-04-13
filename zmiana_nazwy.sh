@@ -1,13 +1,19 @@
 #!/bin/bash
-
-# prepare program
-listOfFiles=()
-listOfDirectories=()
-directory="$(pwd)"
-recursive=false
-verbouse=false
-verbVerbouse=false
-force=false
+install_deps() {
+    if command -v apt >/dev/null 2>&1; then
+        sudo apt update
+        sudo apt install -y "$@"
+    elif command -v dnf >/dev/null 2>&1; then
+        sudo dnf install -y "$@"
+    elif command -v pacman >/dev/null 2>&1; then
+        sudo pacman -Sy --noconfirm "$@"
+    elif command -v zypper >/dev/null 2>&1; then
+        sudo zypper install -y "$@"
+    else
+        echo "Unsupported package manager. Install manually: $*"
+        exit 1
+    fi
+}
 
 cleanup() {
     printf "Stopping...\n"
@@ -30,6 +36,9 @@ look_for_directories_and_files () {
             fi
 
         else
+            if [ $SCRIPT_PATH = "$a" ]; then
+                continue
+            fi
             current_files+=("$a")
             listOfFiles+=("$a")
         fi
@@ -54,12 +63,10 @@ look_for_directories_and_files () {
 
 change_name_of_files () {
     for a in "${listOfFiles[@]}";do
-        #exiftool
-        echo $(stat -c %N $a)
+        echo $(exiftool -FileName $a)
     done
 }
 
-# spinner
 spin() {
     local sp='/-\|'
     local sc=0
@@ -106,14 +113,40 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
+#check dependencies
+dependencies=(exiftool)
+missing=()
+
+for dep in "${dependencies[@]}"; do
+    if ! command -v "$dep" >/dev/null 2>&1; then
+        missing+=("$dep")
+    fi
+done
+if [ ${#missing[@]} -ne 0 ]; then
+    echo "Installing missing dependencies..."
+    install_deps "${missing[@]}"
+fi
+
+# prepare program
+SCRIPT_PATH="$(realpath "$0")"
+listOfFiles=()
+listOfDirectories=()
+directory="$(pwd)"
+recursive=false
+verbouse=false
+verbVerbouse=false
+force=false
+
 # run scan in background
 trap cleanup SIGINT
+
 # start spinner
 if [ "$verbouse" = false ]; then
     spin &
     spinner_pid=$!
 fi
 
+#look for files and Directories
 look_for_directories_and_files "$directory"
 
 # stop spinner
@@ -124,6 +157,7 @@ printf "\n\rDone!                      \n"
 printf "Files found: ${#listOfFiles[@]}\n"
 printf "Directories found: ${#listOfDirectories[@]}\n"
 
+#input from user
 if [ $force = false ]; then
     read -p "Proceed to changing names? (y/n): " confirm && [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]] || cleanup
 fi
@@ -133,4 +167,3 @@ change_name_of_files
 printf "Program finished!"
 
 exit 1
-
