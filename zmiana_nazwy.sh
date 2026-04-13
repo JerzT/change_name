@@ -54,7 +54,8 @@ look_for_directories_and_files () {
 
 change_name_of_files () {
     for a in "${listOfFiles[@]}";do
-        echo $(stat -c %n $a)
+        #exiftool
+        echo $(stat -c %N $a)
     done
 }
 
@@ -108,7 +109,7 @@ done
 # run scan in background
 trap cleanup SIGINT
 # start spinner
-if [ "$verbouse" -eq 0 ]; then
+if [ "$verbouse" = false ]; then
     spin &
     spinner_pid=$!
 fi
@@ -128,4 +129,8 @@ if [ $force = false ]; then
 fi
 
 change_name_of_files
+
+printf "Program finished!"
+
+exit 1
 
