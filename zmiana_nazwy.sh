@@ -39,8 +39,16 @@ look_for_directories_and_files () {
             if [ $SCRIPT_PATH = "$a" ]; then
                 continue
             fi
-            current_files+=("$a")
-            listOfFiles+=("$a")
+
+            ext="${a##*.}"
+
+            for e in "${extensions[@]}"; do
+                if [[ "$ext" == "$e" ]]; then
+                    current_files+=("$a")
+                    listOfFiles+=("$a")
+                    break
+                fi
+            done
         fi
     done
 
@@ -63,7 +71,7 @@ look_for_directories_and_files () {
 
 change_name_of_files () {
     for a in "${listOfFiles[@]}";do
-        echo $(exiftool -FileName $a)
+        echo $(exiftool -common $a)
     done
 }
 
@@ -77,6 +85,7 @@ spin() {
     done
 }
 
+#---------------------------------------------------------------------------------------------#
 # argument parsing
 while [[ "$#" -gt 0 ]]; do
     case $1 in
@@ -88,8 +97,9 @@ while [[ "$#" -gt 0 ]]; do
             echo "  -v, --verbouse        Print more info throught process"
             echo "  -vv --verb-verbouse   Print all processes"
             echo "  -f, --force           Force every changes for files"
-            echo "  -t, --tag             Use one of the tags to choose some type of a file"
+            echo "  -e, --extensions      Specify extensions of looked files"
             echo "  -p, --pattern         Specify pattern of chnaged name"
+            echo "  -t, --tag             Use one of the tags to choose some type of a file"
             exit 0
             ;;
         -d|--directory)
@@ -105,6 +115,12 @@ while [[ "$#" -gt 0 ]]; do
         -vv|--verb-verbouse)
             verbVerbouse=true
             ;;
+        -e|--extensions)
+            shift
+            while [[ $# -gt 0 && "$1" != -* ]]; do
+                extensions+="$1"
+            done
+            ;;
         *)
             echo "Unknown option: $1"
             exit 1
@@ -113,6 +129,8 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
+
+#---------------------------------------------------------------------------------------------#
 #check dependencies
 dependencies=(exiftool)
 missing=()
@@ -127,6 +145,8 @@ if [ ${#missing[@]} -ne 0 ]; then
     install_deps "${missing[@]}"
 fi
 
+
+#---------------------------------------------------------------------------------------------#
 # prepare program
 SCRIPT_PATH="$(realpath "$0")"
 listOfFiles=()
@@ -136,6 +156,7 @@ recursive=false
 verbouse=false
 verbVerbouse=false
 force=false
+extensions=()
 
 # run scan in background
 trap cleanup SIGINT
