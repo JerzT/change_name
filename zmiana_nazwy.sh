@@ -57,6 +57,7 @@ print_help(){
     echo "        {num:04}     -> zero-padded counter (e.g. 0001)"
     echo "        {name}       -> original filename without extension"
     echo "        {ext}        -> file extension"
+    echo "        {date}       -> (implement)"
     echo "        {any_exif}   -> any EXIF tag via exiftool (e.g. {DateTimeOriginal})"
     echo
     echo "      EXAMPLES:"
@@ -250,6 +251,9 @@ resolve_pattern_token() {
         name)
             local base="${file##*/}"
             echo "${base%.*}"
+            ;;
+        date)
+            echo "stat" | $file
             ;;
         *)
             local value
