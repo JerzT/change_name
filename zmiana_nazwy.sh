@@ -297,6 +297,8 @@ build_filename_from_pattern() {
 # Rename files
 #------------------------------------------------------------
 rename_files() {
+    declare -A name_counters   # tracks counts per base filename
+
     file_counter=1
     missing_tags=()
     new_filename=""
@@ -307,16 +309,41 @@ rename_files() {
         if ! build_filename_from_pattern "$file" new_filename; then
             echo "Error: Some EXIF tags are missing."
             echo "Missing tags detected:"
-
             printf " - %s\n" "$(printf "%s\n" "${missing_tags[@]}" | sort -u)"
-
             echo
             echo "Your pattern needs rework. Aborting. List of tags for this file:"
             echo " $(exiftool -s -s "$file" | cut -d: -f1 | sed 's/^/\t/')"
             exit 1
         fi
 
-        new_filepath="$dir/$new_filename"
+        # split name into base + extension
+        if [[ "$new_filename" == *.* ]]; then
+            base_name="${new_filename%.*}"
+            extension=".${new_filename##*.}"
+        else
+            base_name="$new_filename"
+            extension=""
+        fi
+
+        key="$dir/$base_name$extension"
+
+        # initialize counter
+        if [[ -z "${name_counters[$key]}" ]]; then
+            name_counters[$key]=0
+        fi
+
+        count="${name_counters[$key]}"
+
+        # assign filename
+        if [[ "$count" -eq 0 ]]; then
+            final_name="${base_name}${extension}"
+        else
+            final_name="${base_name}_${count}${extension}"
+        fi
+
+        ((name_counters[$key]++))
+
+        new_filepath="$dir/$final_name"
 
         if [[ "$is_verbose" == true || "$is_very_verbose" == true ]]; then
             printf "\nRenaming:\n  %s\n -> %s" "$file" "$new_filepath"
@@ -355,6 +382,10 @@ ALLOWED_TAGS=("music" "video" "image")
 #------------------------------------------------------------
 # Argument parsing
 #------------------------------------------------------------
+if [[ $# -eq 0 ]]; then
+    echo "use -h for guide for using program"
+    exit 0
+fi
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         -h|--help)
@@ -466,7 +497,7 @@ scan_directory "$target_dir"
 
 kill "$spinner_pid" 2>/dev/null
 
-IFS=$'\n' files_list=($(printf "%s\n" "${files_list[@]}" | sort))
+IFS=$'\n' files_list=($(printf "%s\n" "${files_list[@]}" | sort -V))
 
 printf "\nDone!\n"
 printf "Files found: %s\n" "${#files_list[@]}"
