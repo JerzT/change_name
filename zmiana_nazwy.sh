@@ -57,8 +57,8 @@ print_help(){
     echo "        {num:04}     -> zero-padded counter (e.g. 0001)"
     echo "        {name}       -> original filename without extension"
     echo "        {ext}        -> file extension"
-    echo "        {date}       -> (implement)"
-    echo "        {any_exif}   -> any EXIF tag via exiftool (e.g. {DateTimeOriginal})"
+    echo "        {date}       -> birt date of file (YYYY-MM-DD)"
+    echo "        {any_exif}   -> any EXIF tag via exiftool (e.g. {ExifToolVersion})"
     echo
     echo "      EXAMPLES:"
     echo "        -p \"{num:04}_{name}\""
@@ -252,38 +252,19 @@ resolve_pattern_token() {
             local base="${file##*/}"
             echo "${base%.*}"
             ;;
-        date)
-            echo "stat" | $file
+        dateOfBirth)
+            stat -c "%w" "$file" | cut -f1 -d " "
             ;;
         *)
-            local value
-            value=$(get_exif_value "$file" "$key")
+            value=$(exiftool -s -s -s "-$key" "$file")
 
-            [[ -z "$value" ]] && value="UNKNOWN"
-
-            echo "$value" | tr ':' '-' | tr ' ' '_' | tr -cd '[:alnum:]_.-'
+            if [[ -z "$value" ]]; then
+                echo "__MISSING__"
+            else
+                echo "$value"
+            fi
             ;;
     esac
-}
-#------------------------------------------------------------
-# helper
-#------------------------------------------------------------
-get_exif_value() {
-    local file="$1"
-    local key="$2"
-
-    local cache_key="${file}::${key}"
-
-    if [[ -n "${exif_cache[$cache_key]}" ]]; then
-        echo "${exif_cache[$cache_key]}"
-        return
-    fi
-
-    local value
-    value=$(exiftool -s -s -s "-$key" "$file")
-
-    exif_cache[$cache_key]="$value"
-    echo "$value"
 }
 #------------------------------------------------------------
 # Build filename
@@ -300,11 +281,16 @@ build_filename_from_pattern() {
             output+="$value"
         else
             resolved=$(resolve_pattern_token "$value" "$file")
+            if [[ "$resolved" == "__MISSING__" ]]; then
+                missing_tags+=("$value")
+                return 1
+            fi
+
             output+="$resolved"
         fi
     done
 
-    echo "$output"
+    new_filename="$output"
 }
 
 #------------------------------------------------------------
@@ -312,27 +298,28 @@ build_filename_from_pattern() {
 #------------------------------------------------------------
 rename_files() {
     file_counter=1
+    missing_tags=()
+    new_filename=""
 
     for file in "${files_list[@]}"; do
         dir="$(dirname "$file")"
 
-        new_filename="$(build_filename_from_pattern "$file")"
-        new_filepath="$dir/$new_filename"
+        if ! build_filename_from_pattern "$file" new_filename; then
+            echo "Error: Some EXIF tags are missing."
+            echo "Missing tags detected:"
 
-        if [[ -e "$new_filepath" && "$file" != "$new_filepath" ]]; then
-            i=1
-            base="${new_filename%.*}"
-            ext="${new_filename##*.}"
+            printf " - %s\n" "$(printf "%s\n" "${missing_tags[@]}" | sort -u)"
 
-            while [[ -e "$dir/${base}_$i.$ext" ]]; do
-                ((i++))
-            done
-
-            new_filepath="$dir/${base}_$i.$ext"
+            echo
+            echo "Your pattern needs rework. Aborting. List of tags for this file:"
+            echo " $(exiftool -s -s "$file" | cut -d: -f1 | sed 's/^/\t/')"
+            exit 1
         fi
 
+        new_filepath="$dir/$new_filename"
+
         if [[ "$is_verbose" == true || "$is_very_verbose" == true ]]; then
-            printf "Renaming:\n  %s\n→ %s\n\n" "$file" "$new_filepath"
+            printf "\nRenaming:\n  %s\n -> %s" "$file" "$new_filepath"
         fi
 
         if [[ "$is_force" == true ]]; then
@@ -489,6 +476,7 @@ if [[ "$is_force" == false ]]; then
     read -p "Proceed to show how changing names will look? (y/n): " confirm
     is_very_verbose=true
     rename_files
+    echo
     echo "Program finished!"
     exit 0
 fi
@@ -498,5 +486,6 @@ read -p "Proceed to changing names? (y/n): " confirm
 
 rename_files
 
+echo
 echo "Program finished!"
 exit 0
