@@ -70,6 +70,9 @@ print_help(){
     echo "        per-dir  -> reset counter per directory (default)"
     echo "        global   -> continuous numbering across all files"
     echo
+    echo "  --skip-errors"
+    echo "      Skip files that cause errors instead of aborting"
+    echo
     echo "------------------------------------------------------------"
     echo "EXAMPLES:"
     echo
@@ -307,13 +310,22 @@ rename_files() {
         dir="$(dirname "$file")"
 
         if ! build_filename_from_pattern "$file" new_filename; then
-            echo "Error: Some EXIF tags are missing."
-            echo "Missing tags detected:"
-            printf " - %s\n" "$(printf "%s\n" "${missing_tags[@]}" | sort -u)"
-            echo
-            echo "Your pattern needs rework. Aborting. List of tags for this file:"
-            echo " $(exiftool -s -s "$file" | cut -d: -f1 | sed 's/^/\t/')"
-            exit 1
+            if [[ "$skip_errors" == true ]]; then
+                echo
+                echo "Skipping file due to missing tags:"
+                echo "  $file"
+                printf "Missing: %s\n" "$(printf "%s\n" "${missing_tags[@]}" | sort -u)"
+                missing_tags=()
+                continue
+            else
+                echo "Error: Some EXIF tags are missing."
+                echo "Missing tags detected:"
+                printf " - %s\n" "$(printf "%s\n" "${missing_tags[@]}" | sort -u)"
+                echo
+                echo "Your pattern needs rework. Aborting. List of tags for this file:"
+                echo " $(exiftool -s -s "$file" | cut -d: -f1 | sed 's/^/\t/')"
+                exit 1
+            fi
         fi
 
         # split name into base + extension
@@ -378,6 +390,8 @@ rename_pattern=""
 number_mode="per-dir"
 
 ALLOWED_TAGS=("music" "video" "image")
+
+skip_errors=false
 
 #------------------------------------------------------------
 # Argument parsing
@@ -449,6 +463,9 @@ while [[ "$#" -gt 0 ]]; do
         --num-mode)
             number_mode="$2"
             shift
+            ;;
+        --skip-errors)
+            skip_errors=true
             ;;
         *)
             echo "Unknown option: $1"
