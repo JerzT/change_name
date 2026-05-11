@@ -124,7 +124,7 @@ sanitize() {
 }
 
 #------------------------------------------------------------
-# EXIF LOAD (FAST)
+# EXIF LOAD
 #------------------------------------------------------------
 load_exif() {
     exif_cache=()
@@ -154,7 +154,10 @@ scan_directory() {
                     echo "Skipping directory (non-recursive): $entry"
             fi
 
-        elif [[ -f "$entry" && "$entry" != "$script_path" ]]; then
+            elif [[ -f "$entry" &&
+                    "$entry" != "$script_path" &&
+                    "${entry##*/}" != "README.md" ]]; then
+
             ext="${entry##*.}"
 
             if [[ ${#file_extensions[@]} -eq 0 ]] || [[ " ${file_extensions[*]} " == *" $ext "* ]]; then
@@ -336,7 +339,12 @@ done
 #------------------------------------------------------------
 # DEPENDENCIES
 #------------------------------------------------------------
-command -v exiftool >/dev/null || install_deps exiftool
+if_no_exiftool(){
+    printf "Install exiftool \n";
+    exit 0;
+}
+
+command -v exiftool >/dev/null || if_no_exiftool;
 
 #------------------------------------------------------------
 # RUN
@@ -351,6 +359,9 @@ if [[ "$is_verbose" == false && "$is_very_verbose" == false ]]; then
 fi
 
 scan_directory "$target_dir"
+
+
+[[ -n "$spinner_pid" ]] && kill "$spinner_pid" 2>/dev/null
 
 echo
 echo "================ SCAN SUMMARY ================"
@@ -375,7 +386,6 @@ echo
 
 IFS=$'\n' files_list=($(printf "%s\n" "${files_list[@]}" | sort -V))
 
-[[ -n "$spinner_pid" ]] && kill "$spinner_pid" 2>/dev/null
 
 if [[ "$is_force" == false ]]; then
     echo "================================================="
