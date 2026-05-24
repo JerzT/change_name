@@ -256,9 +256,6 @@ rename_files() {
     for file in "${files_list[@]}"; do
         dir="$(dirname "$file")"
 
-        [[ -z "${dir_counters[$dir]}" ]] && dir_counters[$dir]=1
-        file_counter="${dir_counters[$dir]}"
-
         if [[ "$number_mode" == "per-dir" ]]; then
             [[ -z "${dir_counters[$dir]}" ]] && dir_counters[$dir]=1
             file_counter="${dir_counters[$dir]}"
